@@ -596,3 +596,4 @@ Fluxos prioritários do MVP:
 11. visualizar agenda
 
 Esses fluxos devem orientar a implementação inicial do backend e frontend.
+

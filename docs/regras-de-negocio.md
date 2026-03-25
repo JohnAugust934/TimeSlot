@@ -138,7 +138,7 @@ A arquitetura deve permitir evolução futura para suportar regras mais específ
 O encaixe manual, quando existir, só pode ser realizado por:
 
 - administrador
-- atendente ou recepcionista
+- recepcionista
 - o próprio profissional
 
 Clientes não podem criar encaixe manual por conta própria.
@@ -192,7 +192,7 @@ A estrutura do sistema deve permitir que um profissional atenda em:
 Na versão atual, o agendamento pode ser criado por:
 
 - administrador
-- atendente
+- recepcionista
 - profissional
 - cliente, quando o fluxo de autoagendamento existir
 
@@ -202,7 +202,7 @@ Na fase inicial, o sistema pode operar apenas com uso interno.
 
 A edição de detalhes do agendamento deve ser permitida para:
 
-- atendente
+- recepcionista
 - administrador
 - profissional
 
@@ -212,7 +212,7 @@ O cliente poderá ter permissões restritas em fluxos futuros.
 
 O cancelamento pode ser realizado por:
 
-- atendente
+- recepcionista
 - administrador
 - profissional
 - cliente
@@ -282,7 +282,7 @@ O sistema deve permitir registrar se o cliente confirmou o agendamento.
 
 Essa confirmação pode ser:
 
-- manualmente registrada por atendente ou profissional
+- manualmente registrada por recepcionista ou profissional
 - futuramente automatizada
 
 ---
@@ -305,7 +305,7 @@ Deve existir possibilidade de expansão futura para ACL mais detalhada.
 Exemplos:
 
 - administrador vê tudo
-- atendente gerencia a agenda operacional
+- recepcionista gerencia a agenda operacional
 - profissional vê sua própria agenda
 - cliente vê seus próprios agendamentos
 
@@ -380,7 +380,8 @@ Estas são as regras mais importantes do sistema:
 4. Bloqueio de agenda torna horário indisponível.
 5. Duração depende do serviço.
 6. Cliente pode ter vários agendamentos.
-7. Encaixe só por atendente, admin ou profissional.
+7. Encaixe só por recepcionista, admin ou profissional.
 8. Agendamento sempre vinculado a profissional e serviço.
 9. Apenas horários livres podem ser exibidos.
 10. Ações críticas devem ser auditáveis.
+

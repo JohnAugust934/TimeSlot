@@ -81,7 +81,7 @@ Endpoints protegidos devem receber:
   "data": {
     "accessToken": "jwt-token",
     "user": {
-      "id": "uuid",
+      "id": "cuid",
       "name": "João",
       "email": "usuario@dominio.com",
       "role": "ADMIN"
@@ -115,7 +115,7 @@ Endpoints protegidos devem receber:
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "cuid",
     "name": "João",
     "email": "usuario@dominio.com",
     "role": "ADMIN"
@@ -195,7 +195,7 @@ Endpoints protegidos devem receber:
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "cuid",
     "fullName": "Maria Souza",
     "category": "Psicóloga",
     "specialty": "Terapia Clínica",
@@ -259,7 +259,7 @@ Endpoints protegidos devem receber:
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "cuid",
     "fullName": "Maria Souza",
     "category": "Psicóloga",
     "specialty": "Terapia Clínica"
@@ -294,7 +294,7 @@ Endpoints protegidos devem receber:
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "cuid",
     "fullName": "Maria Souza",
     "phone": "11988888888"
   }
@@ -320,7 +320,7 @@ Endpoints protegidos devem receber:
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "cuid",
     "active": false
   }
 }
@@ -375,7 +375,7 @@ Endpoints protegidos devem receber:
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "cuid",
     "fullName": "Carlos Silva",
     "phone": "11977777777",
     "email": "carlos@email.com"
@@ -471,7 +471,7 @@ Endpoints protegidos devem receber:
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "cuid",
     "name": "Consulta Inicial",
     "durationMinutes": 60,
     "active": true
@@ -523,11 +523,11 @@ Endpoints protegidos devem receber:
 
 ```json
 {
-  "professionalId": "uuid",
+  "professionalId": "cuid",
   "weekday": 1,
   "startTime": "08:00",
   "endTime": "12:00",
-  "unitId": "uuid-opcional",
+  "unitId": "cuid-opcional",
   "slotMinutes": 30
 }
 ```
@@ -538,8 +538,8 @@ Endpoints protegidos devem receber:
 {
   "success": true,
   "data": {
-    "id": "uuid",
-    "professionalId": "uuid",
+    "id": "cuid",
+    "professionalId": "cuid",
     "weekday": 1,
     "startTime": "08:00",
     "endTime": "12:00"
@@ -592,8 +592,8 @@ Endpoints protegidos devem receber:
 
 ```json
 {
-  "professionalId": "uuid",
-  "unitId": "uuid-opcional",
+  "professionalId": "cuid",
+  "unitId": "cuid-opcional",
   "startsAt": "2026-03-30T12:00:00.000Z",
   "endsAt": "2026-03-30T13:00:00.000Z",
   "reason": "Almoço",
@@ -607,8 +607,8 @@ Endpoints protegidos devem receber:
 {
   "success": true,
   "data": {
-    "id": "uuid",
-    "professionalId": "uuid",
+    "id": "cuid",
+    "professionalId": "cuid",
     "startsAt": "2026-03-30T12:00:00.000Z",
     "endsAt": "2026-03-30T13:00:00.000Z",
     "reason": "Almoço"
@@ -660,7 +660,7 @@ Endpoints protegidos devem receber:
 
 **Exemplo:**
 
-`/appointments/available-slots?professionalId=uuid&serviceId=uuid&date=2026-03-30`
+`/appointments/available-slots?professionalId=cuid&serviceId=cuid&date=2026-03-30`
 
 **Resposta de sucesso:**
 
@@ -669,8 +669,8 @@ Endpoints protegidos devem receber:
   "success": true,
   "data": {
     "date": "2026-03-30",
-    "professionalId": "uuid",
-    "serviceId": "uuid",
+    "professionalId": "cuid",
+    "serviceId": "cuid",
     "slots": [
       "08:00",
       "09:00",
@@ -708,10 +708,10 @@ Endpoints protegidos devem receber:
 
 ```json
 {
-  "professionalId": "uuid",
-  "clientId": "uuid",
-  "serviceId": "uuid",
-  "unitId": "uuid-opcional",
+  "professionalId": "cuid",
+  "clientId": "cuid",
+  "serviceId": "cuid",
+  "unitId": "cuid-opcional",
   "startsAt": "2026-03-30T10:00:00.000Z",
   "notes": "Primeira consulta",
   "internalNotes": "Cliente veio por indicação"
@@ -724,10 +724,10 @@ Endpoints protegidos devem receber:
 {
   "success": true,
   "data": {
-    "id": "uuid",
-    "professionalId": "uuid",
-    "clientId": "uuid",
-    "serviceId": "uuid",
+    "id": "cuid",
+    "professionalId": "cuid",
+    "clientId": "cuid",
+    "serviceId": "cuid",
     "startsAt": "2026-03-30T10:00:00.000Z",
     "endsAt": "2026-03-30T11:00:00.000Z",
     "status": "SCHEDULED"
@@ -823,7 +823,7 @@ Endpoints protegidos devem receber:
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "cuid",
     "startsAt": "2026-04-02T14:00:00.000Z",
     "endsAt": "2026-04-02T15:00:00.000Z",
     "status": "RESCHEDULED"
@@ -863,7 +863,7 @@ Endpoints protegidos devem receber:
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "cuid",
     "status": "CANCELLED",
     "cancelledAt": "2026-03-25T18:00:00.000Z"
   }
@@ -900,7 +900,7 @@ Endpoints protegidos devem receber:
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "cuid",
     "status": "COMPLETED"
   }
 }
@@ -931,7 +931,7 @@ Endpoints protegidos devem receber:
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "cuid",
     "confirmationStatus": "CONFIRMED"
   }
 }
@@ -959,12 +959,12 @@ Endpoints protegidos devem receber:
   "success": true,
   "data": [
     {
-      "id": "uuid",
+      "id": "cuid",
       "action": "CREATED",
       "description": "Agendamento criado",
       "createdAt": "2026-03-25T17:00:00.000Z",
       "user": {
-        "id": "uuid",
+        "id": "cuid",
         "name": "Admin"
       }
     }
@@ -1029,9 +1029,9 @@ Endpoints protegidos devem receber:
 
 ```json
 {
-  "clientId": "uuid",
-  "professionalId": "uuid",
-  "serviceId": "uuid",
+  "clientId": "cuid",
+  "professionalId": "cuid",
+  "serviceId": "cuid",
   "preferredDate": "2026-04-10",
   "preferredPeriod": "MORNING",
   "notes": "Pode chamar se vagar cedo"
@@ -1103,3 +1103,4 @@ Este documento deve ser atualizado sempre que:
 - um erro novo precisar ser padronizado
 
 Idealmente, a documentação deste arquivo deve acompanhar a documentação automática da API, como Swagger/OpenAPI, quando estiver disponível.
+

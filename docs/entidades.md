@@ -58,7 +58,7 @@ Exemplo:
 
 Todas as entidades principais devem utilizar identificadores únicos estáveis, preferencialmente:
 
-- UUID
+- CUID
 - CUID
 
 ### 2.4. Datas
@@ -86,7 +86,7 @@ Datas devem ser armazenadas de forma consistente, preferencialmente em UTC.
 **Exemplos de perfis:**
 
 - administrador
-- atendente
+- recepcionista
 - profissional
 - cliente
 
@@ -382,7 +382,7 @@ Datas devem ser armazenadas de forma consistente, preferencialmente em UTC.
 - é a entidade mais importante da operação
 - toda alteração relevante deve gerar histórico
 - remarcação deve preservar rastreabilidade; preferencialmente cancelar o registro anterior, criar o novo e registrar o evento
-- pode ser criada por admin, atendente, profissional e futuramente pelo próprio cliente
+- pode ser criada por admin, recepcionista, profissional e futuramente pelo próprio cliente
 
 **Relacionamentos:**
 
@@ -607,3 +607,4 @@ Se houver divergência entre:
 - schema do banco
 
 a inconsistência deve ser corrigida antes de continuar o desenvolvimento.
+

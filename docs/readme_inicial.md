@@ -535,3 +535,4 @@ Este projeto deve evoluir com base em:
 - documentação viva
 
 Se houver divergência entre código e documentação, a documentação deve ser revisada e o impacto no código deve ser avaliado antes de seguir com novas implementações.
+
