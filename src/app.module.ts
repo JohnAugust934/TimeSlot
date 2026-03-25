@@ -15,6 +15,7 @@ import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AvailabilitiesModule } from './modules/availabilities/availabilities.module';
 import { ClientsModule } from './modules/clients/clients.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { ProfessionalsModule } from './modules/professionals/professionals.module';
 import { ServicesModule } from './modules/services/services.module';
 import { UnitsModule } from './modules/units/units.module';
@@ -35,6 +36,7 @@ import { WaitlistModule } from './modules/waitlist/waitlist.module';
     UsersModule,
     ProfessionalsModule,
     ClientsModule,
+    DashboardModule,
     UnitsModule,
     ServicesModule,
     AvailabilitiesModule,
