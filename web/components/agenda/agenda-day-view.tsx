@@ -41,22 +41,32 @@ export function AgendaDayView({ day }: AgendaDayViewProps) {
                 </div>
                 <p className="text-sm text-slate">{slot.appointment.serviceName}</p>
                 <p className="text-xs text-slate">
-                  {slot.appointment.startsAt.slice(11, 16)} -{' '}
-                  {slot.appointment.endsAt.slice(11, 16)}
+                  {slot.appointment.startsAt.slice(11, 16)} - {slot.appointment.endsAt.slice(11, 16)}
                 </p>
               </div>
             ) : (
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm text-slate">
-                  {slot.state === 'free'
-                    ? 'Horario livre para novo agendamento'
-                    : 'Fora da disponibilidade'}
-                </p>
+                <div>
+                  {slot.state === 'free' ? (
+                    <p className="text-sm text-slate">Horario livre para novo agendamento</p>
+                  ) : (
+                    <>
+                      <p className="text-sm text-slate">Horario indisponivel</p>
+                      {slot.unavailableReason ? (
+                        <p className="text-xs text-slate">Motivo: {slot.unavailableReason}</p>
+                      ) : null}
+                    </>
+                  )}
+                </div>
                 {slot.state === 'free' ? (
                   <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-accent ring-1 ring-line">
                     Livre
                   </span>
-                ) : null}
+                ) : (
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate ring-1 ring-line">
+                    Indisponivel
+                  </span>
+                )}
               </div>
             )}
           </div>

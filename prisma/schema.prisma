@@ -133,6 +133,7 @@ model Client {
   updatedAt       DateTime      @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz(6)
 
   @@index([email], map: "idx_cliente_email")
+  @@index([createdAt], map: "idx_cliente_criado_em")
   @@index([document], map: "idx_cliente_documento")
   @@map("cliente")
 }
@@ -200,6 +201,7 @@ model Availability {
   updatedAt       DateTime     @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz(6)
 
   @@index([professionalId, weekday], map: "idx_disponibilidade_profissional_dia")
+  @@index([professionalId, active, weekday], map: "idx_disponibilidade_profissional_ativo_dia")
   @@map("disponibilidade")
 }
 
@@ -218,6 +220,7 @@ model AgendaBlock {
   updatedAt      DateTime     @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz(6)
 
   @@index([professionalId, startsAt, endsAt], map: "idx_bloqueio_profissional_intervalo")
+  @@index([professionalId, active, startsAt], map: "idx_bloqueio_profissional_ativo_inicio")
   @@map("bloqueio_agenda")
 }
 
@@ -249,6 +252,7 @@ model Appointment {
   updatedAt          DateTime             @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz(6)
 
   @@index([professionalId, startsAt], map: "idx_agendamento_profissional_inicio")
+  @@index([professionalId, status, startsAt], map: "idx_agendamento_profissional_status_inicio")
   @@index([clientId, startsAt], map: "idx_agendamento_cliente_inicio")
   @@index([status], map: "idx_agendamento_status")
   @@map("agendamento")
@@ -290,3 +294,4 @@ model Waitlist {
   @@index([status], map: "idx_lista_espera_status")
   @@map("lista_espera")
 }
+

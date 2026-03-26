@@ -1,14 +1,8 @@
 {
-  "/_not-found/page": "app/_not-found/page.js",
-  "/api/auth/login/route": "app/api/auth/login/route.js",
-  "/api/auth/logout/route": "app/api/auth/logout/route.js",
   "/api/agenda/route": "app/api/agenda/route.js",
-  "/page": "app/page.js",
-  "/(auth)/login/page": "app/(auth)/login/page.js",
+  "/(protected)/professionals/page": "app/(protected)/professionals/page.js",
   "/(protected)/agenda/page": "app/(protected)/agenda/page.js",
-  "/(protected)/services/page": "app/(protected)/services/page.js",
-  "/(protected)/appointments/page": "app/(protected)/appointments/page.js",
-  "/(protected)/dashboard/page": "app/(protected)/dashboard/page.js",
   "/(protected)/clients/page": "app/(protected)/clients/page.js",
-  "/(protected)/professionals/page": "app/(protected)/professionals/page.js"
+  "/(protected)/appointments/page": "app/(protected)/appointments/page.js",
+  "/(protected)/dashboard/page": "app/(protected)/dashboard/page.js"
 }

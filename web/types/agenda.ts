@@ -34,6 +34,7 @@ export interface AgendaSlot {
   timeLabel: string;
   state: AgendaSlotState;
   appointment?: AgendaAppointmentItem;
+  unavailableReason?: string | null;
 }
 
 export interface AgendaDayColumn {

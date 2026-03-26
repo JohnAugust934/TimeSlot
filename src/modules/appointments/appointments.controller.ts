@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import type { Request } from 'express';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -18,8 +19,15 @@ export class AppointmentsController {
 
   @Roles(AppRole.ADMIN, AppRole.RECEPTIONIST, AppRole.PROFESSIONAL)
   @Post()
-  create(@Body() body: CreateAppointmentDto, @CurrentUser() user: JwtPayload) {
-    return this.appointmentsService.create(body, user.sub);
+  create(
+    @Body() body: CreateAppointmentDto,
+    @CurrentUser() user: JwtPayload,
+    @Req() request: Request,
+  ) {
+    return this.appointmentsService.create(body, user.sub, {
+      ip: request.ip,
+      userAgent: request.headers['user-agent'],
+    });
   }
 
   @Roles(AppRole.ADMIN, AppRole.RECEPTIONIST, AppRole.PROFESSIONAL)
@@ -46,8 +54,12 @@ export class AppointmentsController {
     @Param('id') id: string,
     @Body() body: CancelAppointmentDto,
     @CurrentUser() user: JwtPayload,
+    @Req() request: Request,
   ) {
-    return this.appointmentsService.cancel(id, body, user.sub);
+    return this.appointmentsService.cancel(id, body, user.sub, {
+      ip: request.ip,
+      userAgent: request.headers['user-agent'],
+    });
   }
 
   @Roles(AppRole.ADMIN, AppRole.RECEPTIONIST, AppRole.PROFESSIONAL)
@@ -56,8 +68,12 @@ export class AppointmentsController {
     @Param('id') id: string,
     @Body() body: RescheduleAppointmentDto,
     @CurrentUser() user: JwtPayload,
+    @Req() request: Request,
   ) {
-    return this.appointmentsService.reschedule(id, body, user.sub);
+    return this.appointmentsService.reschedule(id, body, user.sub, {
+      ip: request.ip,
+      userAgent: request.headers['user-agent'],
+    });
   }
 
   @Roles(AppRole.ADMIN, AppRole.RECEPTIONIST, AppRole.PROFESSIONAL)
@@ -66,7 +82,11 @@ export class AppointmentsController {
     @Param('id') id: string,
     @Body() body: UpdateAppointmentStatusDto,
     @CurrentUser() user: JwtPayload,
+    @Req() request: Request,
   ) {
-    return this.appointmentsService.updateStatus(id, body, user.sub);
+    return this.appointmentsService.updateStatus(id, body, user.sub, {
+      ip: request.ip,
+      userAgent: request.headers['user-agent'],
+    });
   }
 }

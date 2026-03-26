@@ -31,6 +31,11 @@ interface TimeWindow {
   endsAt: Date;
 }
 
+interface ActorContext {
+  ip?: string | null;
+  userAgent?: string | string[] | undefined;
+}
+
 type AppointmentWithRelations = Prisma.AppointmentGetPayload<{
   include: {
     professional: { select: { id: true; fullName: true } };
@@ -64,7 +69,7 @@ export class AppointmentsService {
     private readonly appointmentHistoryService: AppointmentHistoryService,
   ) {}
 
-  async create(input: CreateAppointmentDto, actorUserId: string) {
+  async create(input: CreateAppointmentDto, actorUserId: string, actorContext?: ActorContext) {
     const professionalId = this.validateId(input.professionalId, 'Professional');
     const clientId = this.validateId(input.clientId, 'Client');
     const serviceId = this.validateId(input.serviceId, 'Service');
@@ -130,13 +135,13 @@ export class AppointmentsService {
       await this.appointmentHistoryService.recordCreated(tx, {
         appointmentId: createdAppointment.id,
         userId: actorUserId,
-        metadata: {
+        metadata: this.withActorMetadata(actorContext, {
           startsAt: createdAppointment.startsAt.toISOString(),
           endsAt: createdAppointment.endsAt.toISOString(),
           serviceId: createdAppointment.serviceId,
           status: createdAppointment.status,
           confirmationStatus: createdAppointment.confirmationStatus,
-        },
+        }),
       });
 
       return createdAppointment;
@@ -195,7 +200,12 @@ export class AppointmentsService {
     return this.toAppointmentDetailsResponse(appointment);
   }
 
-  async cancel(id: string, input: CancelAppointmentDto, actorUserId: string) {
+  async cancel(
+    id: string,
+    input: CancelAppointmentDto,
+    actorUserId: string,
+    actorContext?: ActorContext,
+  ) {
     const appointmentId = this.validateId(id, 'Appointment');
 
     const appointment = await this.prisma.$transaction(async (tx) => {
@@ -220,11 +230,11 @@ export class AppointmentsService {
       await this.appointmentHistoryService.recordCancelled(tx, {
         appointmentId,
         userId: actorUserId,
-        metadata: {
+        metadata: this.withActorMetadata(actorContext, {
           previousStatus: current.status,
           newStatus: AppointmentStatus.CANCELLED,
           reason: input.reason?.trim() || null,
-        },
+        }),
       });
 
       return cancelledAppointment;
@@ -233,7 +243,12 @@ export class AppointmentsService {
     return this.toAppointmentResponse(appointment);
   }
 
-  async reschedule(id: string, input: RescheduleAppointmentDto, actorUserId: string) {
+  async reschedule(
+    id: string,
+    input: RescheduleAppointmentDto,
+    actorUserId: string,
+    actorContext?: ActorContext,
+  ) {
     const appointmentId = this.validateId(id, 'Appointment');
     const newStartsAt = this.parseDateTime(input.startsAt, 'startsAt');
 
@@ -292,25 +307,25 @@ export class AppointmentsService {
       await this.appointmentHistoryService.recordRescheduled(tx, {
         appointmentId: current.id,
         userId: actorUserId,
-        metadata: {
+        metadata: this.withActorMetadata(actorContext, {
           previousStartsAt: current.startsAt.toISOString(),
           previousEndsAt: current.endsAt.toISOString(),
           newAppointmentId: newAppointment.id,
           newStartsAt: newAppointment.startsAt.toISOString(),
           newEndsAt: newAppointment.endsAt.toISOString(),
           reason: input.reason?.trim() || null,
-        },
+        }),
       });
 
       await this.appointmentHistoryService.recordCreated(tx, {
         appointmentId: newAppointment.id,
         userId: actorUserId,
-        metadata: {
+        metadata: this.withActorMetadata(actorContext, {
           rescheduledFromId: current.id,
           startsAt: newAppointment.startsAt.toISOString(),
           endsAt: newAppointment.endsAt.toISOString(),
           reason: input.reason?.trim() || null,
-        },
+        }),
       });
 
       return newAppointment;
@@ -319,7 +334,12 @@ export class AppointmentsService {
     return this.toAppointmentResponse(appointment);
   }
 
-  async updateStatus(id: string, input: UpdateAppointmentStatusDto, actorUserId: string) {
+  async updateStatus(
+    id: string,
+    input: UpdateAppointmentStatusDto,
+    actorUserId: string,
+    actorContext?: ActorContext,
+  ) {
     const appointmentId = this.validateId(id, 'Appointment');
 
     if (
@@ -368,10 +388,10 @@ export class AppointmentsService {
         await this.appointmentHistoryService.recordStatusChanged(tx, {
           appointmentId,
           userId: actorUserId,
-          metadata: {
+          metadata: this.withActorMetadata(actorContext, {
             previousStatus: current.status,
             newStatus: input.status,
-          },
+          }),
         });
       }
 
@@ -380,10 +400,10 @@ export class AppointmentsService {
           await this.appointmentHistoryService.recordConfirmed(tx, {
             appointmentId,
             userId: actorUserId,
-            metadata: {
+            metadata: this.withActorMetadata(actorContext, {
               previousConfirmationStatus: current.confirmationStatus,
               newConfirmationStatus: nextConfirmationStatus,
-            },
+            }),
           });
         } else {
           await this.appointmentHistoryService.record(tx, {
@@ -391,10 +411,10 @@ export class AppointmentsService {
             userId: actorUserId,
             action: AppointmentHistoryAction.CONFIRMATION_CHANGED,
             description: 'Appointment confirmation status updated.',
-            metadata: {
+            metadata: this.withActorMetadata(actorContext, {
               previousConfirmationStatus: current.confirmationStatus,
               newConfirmationStatus: nextConfirmationStatus,
-            },
+            }),
           });
         }
       }
@@ -774,6 +794,33 @@ export class AppointmentsService {
 
   private formatDate(date: Date) {
     return date.toISOString().slice(0, 10);
+  }
+
+  private withActorMetadata(
+    actorContext: ActorContext | undefined,
+    metadata: Prisma.JsonObject,
+  ): Prisma.JsonObject {
+    const ip = actorContext?.ip?.trim() || null;
+    const userAgent = this.normalizeUserAgent(actorContext?.userAgent);
+
+    return {
+      ...metadata,
+      actorIp: ip,
+      actorUserAgent: userAgent,
+    };
+  }
+
+  private normalizeUserAgent(userAgent: string | string[] | undefined): string | null {
+    if (Array.isArray(userAgent)) {
+      const value = userAgent.find((item) => item?.trim());
+      return value?.trim() || null;
+    }
+
+    if (typeof userAgent === 'string' && userAgent.trim()) {
+      return userAgent.trim();
+    }
+
+    return null;
   }
 
   private validateId(id: string, entityLabel: string) {

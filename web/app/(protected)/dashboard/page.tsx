@@ -2,12 +2,26 @@ import { StatCard } from '@/components/dashboard/stat-card';
 import { SectionCard } from '@/components/layout/section-card';
 import { PageHeader } from '@/components/ui/page-header';
 import { apiFetch } from '@/lib/api/client';
-import { agendaItems } from '@/lib/demo-data';
-import { formatPercent } from '@/lib/utils';
+import { formatDateTime, formatPercent } from '@/lib/utils';
 
 interface DashboardSummary {
   total: number;
   byStatus?: Record<string, number>;
+}
+
+interface UpcomingResponse {
+  items: Array<{
+    id: string;
+    startsAt: string;
+    status: string;
+    client: { fullName: string | null };
+    professional: { fullName: string | null };
+    service: { name: string | null };
+  }>;
+}
+
+interface CounterResponse {
+  total: number;
 }
 
 interface OccupancyResponse {
@@ -19,98 +33,91 @@ interface OccupancyResponse {
   }>;
 }
 
-async function getDashboardData() {
-  try {
-    const [today, occupancy] = await Promise.all([
-      apiFetch<DashboardSummary>('/dashboard/today-appointments'),
-      apiFetch<OccupancyResponse>('/dashboard/professional-occupancy'),
-    ]);
+const STATUS_LABELS: Record<string, string> = {
+  SCHEDULED: 'Agendado',
+  CONFIRMED: 'Confirmado',
+  IN_PROGRESS: 'Em atendimento',
+  COMPLETED: 'Concluido',
+  CANCELLED: 'Cancelado',
+  NO_SHOW: 'Faltou',
+  RESCHEDULED: 'Remarcado',
+};
 
-    return { today, occupancy };
-  } catch {
-    return {
-      today: { total: 12, byStatus: { SCHEDULED: 5, CONFIRMED: 4, COMPLETED: 3 } },
-      occupancy: {
-        items: [
-          {
-            professionalId: 'prof-1',
-            professionalName: 'Ana Martins',
-            occupancyPercent: 76,
-            appointmentsCount: 8,
-          },
-          {
-            professionalId: 'prof-2',
-            professionalName: 'Bruno Lima',
-            occupancyPercent: 58,
-            appointmentsCount: 5,
-          },
-        ],
-      },
-    };
-  }
+function translateStatus(value: string) {
+  return STATUS_LABELS[value] ?? value;
 }
 
 export default async function DashboardPage() {
-  const { today, occupancy } = await getDashboardData();
+  const [today, upcoming, noShows, cancellations, newClients, occupancy] = await Promise.all([
+    apiFetch<DashboardSummary>('/dashboard/today-appointments').catch(
+      () => ({ total: 0, byStatus: {} } as DashboardSummary),
+    ),
+    apiFetch<UpcomingResponse>('/dashboard/upcoming-appointments?limit=8').catch(() => ({ items: [] })),
+    apiFetch<CounterResponse>('/dashboard/no-shows').catch(() => ({ total: 0 })),
+    apiFetch<CounterResponse>('/dashboard/cancellations').catch(() => ({ total: 0 })),
+    apiFetch<CounterResponse>('/dashboard/new-clients').catch(() => ({ total: 0 })),
+    apiFetch<OccupancyResponse>('/dashboard/professional-occupancy').catch(() => ({ items: [] })),
+  ]);
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="Dashboard"
-        description="Visao executiva da operacao com indicadores de atendimento, ocupacao e atividade recente."
+        description="Indicadores de operacao em tempo real para recepcao, gestao e equipe profissional."
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Atendimentos do dia"
-          value={today.total}
-          helper="Baseado nos agendamentos da data atual"
-          tone="accent"
-        />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <StatCard label="Atendimentos do dia" value={today.total} helper="Data atual" tone="accent" />
         <StatCard
           label="Confirmados"
-          value={today.byStatus?.CONFIRMED ?? 0}
-          helper="Agendamentos com confirmacao registrada"
+          value={today.byStatus?.['CONFIRMED'] ?? 0}
+          helper="Status confirmado"
         />
         <StatCard
           label="Concluidos"
-          value={today.byStatus?.COMPLETED ?? 0}
-          helper="Atendimentos encerrados hoje"
+          value={today.byStatus?.['COMPLETED'] ?? 0}
+          helper="Atendidos hoje"
           tone="success"
         />
-        <StatCard
-          label="Agendados"
-          value={today.byStatus?.SCHEDULED ?? 0}
-          helper="Itens ainda previstos para o dia"
-        />
+        <StatCard label="Faltas" value={noShows.total} helper="Periodo vigente" />
+        <StatCard label="Cancelamentos" value={cancellations.total} helper="Periodo vigente" />
+        <StatCard label="Novos clientes" value={newClients.total} helper="Periodo vigente" />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <SectionCard
           title="Proximos atendimentos"
-          description="Lista enxuta para monitoramento rapido da equipe e da recepcao."
+          description="Fila priorizada para acompanhamento da operacao."
         >
           <div className="space-y-3">
-            {agendaItems.map((item) => (
+            {upcoming.items.map((item) => (
               <div
-                key={`${item.time}-${item.client}`}
-                className="flex items-center justify-between rounded-2xl border border-line bg-sand/55 px-4 py-3"
+                key={item.id}
+                className="flex flex-col gap-2 rounded-2xl border border-line bg-sand/55 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
-                  <p className="text-sm font-semibold text-ink">{item.client}</p>
+                  <p className="text-sm font-semibold text-ink">{item.client.fullName ?? 'Cliente'}</p>
                   <p className="text-xs text-slate">
-                    {item.professional} � {item.service}
+                    {item.professional.fullName ?? 'Profissional'} - {item.service.name ?? 'Servico'}
                   </p>
                 </div>
-                <span className="text-sm font-semibold text-accent">{item.time}</span>
+                <div className="text-left sm:text-right">
+                  <span className="text-sm font-semibold text-accent">{formatDateTime(item.startsAt)}</span>
+                  <p className="text-xs text-slate">{translateStatus(item.status)}</p>
+                </div>
               </div>
             ))}
+            {upcoming.items.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-line p-4 text-sm text-slate">
+                Sem atendimentos futuros no periodo.
+              </div>
+            ) : null}
           </div>
         </SectionCard>
 
         <SectionCard
           title="Ocupacao por profissional"
-          description="Acompanha a distribuicao da agenda e ajuda no balanceamento do time."
+          description="Distribuicao da agenda para apoiar balanceamento da equipe."
         >
           <div className="space-y-4">
             {occupancy.items.map((item) => (
@@ -125,11 +132,14 @@ export default async function DashboardPage() {
                     style={{ width: `${item.occupancyPercent}%` }}
                   />
                 </div>
-                <p className="text-xs text-slate">
-                  {item.appointmentsCount} agendamentos no periodo
-                </p>
+                <p className="text-xs text-slate">{item.appointmentsCount} agendamentos no periodo</p>
               </div>
             ))}
+            {occupancy.items.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-line p-4 text-sm text-slate">
+                Sem dados de ocupacao para exibir.
+              </div>
+            ) : null}
           </div>
         </SectionCard>
       </div>

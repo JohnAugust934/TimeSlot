@@ -7,9 +7,9 @@ interface SectionCardProps {
 
 export function SectionCard({ title, description, children }: PropsWithChildren<SectionCardProps>) {
   return (
-    <section className="rounded-[1.75rem] border border-line bg-white p-6 shadow-panel">
-      <div className="mb-5">
-        <h2 className="text-lg font-semibold text-ink">{title}</h2>
+    <section className="overflow-hidden rounded-[1.25rem] border border-line bg-white p-4 shadow-panel md:rounded-[1.5rem] md:p-5 lg:rounded-[1.75rem] lg:p-6">
+      <div className="mb-4 md:mb-5">
+        <h2 className="text-base font-semibold text-ink md:text-lg">{title}</h2>
         <p className="mt-1 text-sm text-slate">{description}</p>
       </div>
       {children}

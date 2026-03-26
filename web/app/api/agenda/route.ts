@@ -23,6 +23,14 @@ interface BackendAvailabilityItem {
   slotMinutes?: number | null;
 }
 
+interface BackendAgendaBlockItem {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  reason?: string | null;
+  allDay?: boolean;
+}
+
 interface BackendAppointmentItem {
   id: string;
   startsAt: string;
@@ -34,7 +42,20 @@ interface BackendAppointmentItem {
   service?: { name?: string | null } | null;
 }
 
+interface PaginatedResponse<T> {
+  items: T[];
+  totalPages?: number;
+}
+
+interface MappedAgendaAppointment extends AgendaAppointmentItem {
+  localDate: string;
+  startMinutes: number;
+  endMinutes: number;
+}
+
 const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
+const PAGE_LIMIT = 100;
+const AGENDA_TIME_ZONE = process.env.AGENDA_TIME_ZONE ?? 'America/Sao_Paulo';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -43,12 +64,10 @@ export async function GET(request: Request) {
   const requestedProfessionalId = searchParams.get('professionalId')?.trim() || null;
 
   try {
-    const professionalsPayload = await apiFetch<{ items: BackendProfessionalListItem[] }>(
-      '/professionals?page=1&limit=100&active=true',
+    const professionals = await fetchPaginatedAllPages<BackendProfessionalListItem>(
+      '/professionals?active=true',
     );
-    const professionals = professionalsPayload.items ?? [];
-
-    const selectedProfessionalId = requestedProfessionalId ?? professionals.at(0)?.id ?? null;
+    const selectedProfessionalId = resolveProfessionalId(professionals, requestedProfessionalId);
 
     if (!selectedProfessionalId || professionals.length === 0) {
       return NextResponse.json<AgendaResponse>({
@@ -62,29 +81,29 @@ export async function GET(request: Request) {
           label: 'Nenhum profissional ativo encontrado',
         },
         days: [],
-        summary: {
-          totalAppointments: 0,
-          occupiedSlots: 0,
-          freeSlots: 0,
-        },
+        summary: { totalAppointments: 0, occupiedSlots: 0, freeSlots: 0 },
       });
     }
 
     const range = buildRange(requestedDate, view);
-    const [availabilitiesPayload, appointmentsPayload] = await Promise.all([
-      apiFetch<{ items: BackendAvailabilityItem[] }>(
-        `/availabilities?professionalId=${selectedProfessionalId}&active=true&limit=100`,
+    const [availabilities, blocks, appointments] = await Promise.all([
+      fetchCollection<BackendAvailabilityItem>(
+        `/availabilities?professionalId=${encodeURIComponent(selectedProfessionalId)}&active=true`,
       ),
-      apiFetch<{ items: BackendAppointmentItem[] }>(
-        `/appointments?professionalId=${selectedProfessionalId}&dateFrom=${range.startIso}&dateTo=${range.endIso}&limit=100`,
+      fetchCollection<BackendAgendaBlockItem>(
+        `/agenda-blocks?professionalId=${encodeURIComponent(selectedProfessionalId)}&active=true&dateFrom=${encodeURIComponent(range.queryStartIso)}&dateTo=${encodeURIComponent(range.queryEndIso)}`,
+      ),
+      fetchPaginatedAllPages<BackendAppointmentItem>(
+        `/appointments?professionalId=${encodeURIComponent(selectedProfessionalId)}&dateFrom=${encodeURIComponent(range.queryStartIso)}&dateTo=${encodeURIComponent(range.queryEndIso)}`,
       ),
     ]);
 
     const days = buildAgendaDays({
       startDate: range.startDate,
       endDate: range.endDate,
-      availabilities: availabilitiesPayload.items ?? [],
-      appointments: appointmentsPayload.items ?? [],
+      availabilities,
+      blocks,
+      appointments,
     });
 
     const summary = days.reduce(
@@ -97,7 +116,7 @@ export async function GET(request: Request) {
       { totalAppointments: 0, occupiedSlots: 0, freeSlots: 0 },
     );
 
-    const response: AgendaResponse = {
+    return NextResponse.json<AgendaResponse>({
       view,
       selectedDate: requestedDate,
       selectedProfessionalId,
@@ -107,24 +126,60 @@ export async function GET(request: Request) {
         specialty: professional.specialty ?? null,
       })),
       range: {
-        startDate: formatDate(range.startDate),
-        endDate: formatDate(range.endDate),
+        startDate: range.startDate,
+        endDate: range.endDate,
         label: formatRangeLabel(range.startDate, range.endDate, view),
       },
       days,
       summary,
-    };
+    });
+  } catch (error) {
+    console.error('Agenda API error', {
+      requestedDate,
+      view,
+      requestedProfessionalId,
+      error,
+    });
 
-    return NextResponse.json(response);
-  } catch {
-    return NextResponse.json(buildFallbackAgenda(requestedDate, view, requestedProfessionalId));
+    return NextResponse.json({ message: 'Nao foi possivel carregar a agenda.' }, { status: 502 });
   }
 }
 
+async function fetchPaginatedAllPages<T>(path: string) {
+  const items: T[] = [];
+  let page = 1;
+
+  while (true) {
+    const separator = path.includes('?') ? '&' : '?';
+    const payload = await apiFetch<PaginatedResponse<T>>(
+      `${path}${separator}page=${page}&limit=${PAGE_LIMIT}`,
+    );
+    const currentItems = payload.items ?? [];
+    items.push(...currentItems);
+
+    if (
+      currentItems.length === 0 ||
+      currentItems.length < PAGE_LIMIT ||
+      (payload.totalPages !== undefined && page >= payload.totalPages)
+    ) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return items;
+}
+
+async function fetchCollection<T>(path: string) {
+  return apiFetch<T[]>(path);
+}
+
 function buildAgendaDays(input: {
-  startDate: Date;
-  endDate: Date;
+  startDate: string;
+  endDate: string;
   availabilities: BackendAvailabilityItem[];
+  blocks: BackendAgendaBlockItem[];
   appointments: BackendAppointmentItem[];
 }) {
   const dates = enumerateDates(input.startDate, input.endDate);
@@ -133,13 +188,13 @@ function buildAgendaDays(input: {
   const slotMinutes = getSlotMinutes(input.availabilities);
 
   return dates.map((date) => {
-    const weekday = date.getUTCDay();
+    const weekday = getWeekday(date);
     const dayAvailabilities = input.availabilities.filter(
       (availability) => availability.weekday === weekday,
     );
     const dayAppointments = input.appointments
-      .filter((appointment) => isSameDate(new Date(appointment.startsAt), date))
-      .map(mapAppointment);
+      .map(mapAppointment)
+      .filter((appointment) => appointment.localDate === date);
 
     const slots = buildSlots({
       date,
@@ -147,12 +202,13 @@ function buildAgendaDays(input: {
       maxTime,
       slotMinutes,
       dayAvailabilities,
+      blocks: input.blocks,
       appointments: dayAppointments,
     });
 
     return {
-      date: formatDate(date),
-      label: new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(date),
+      date,
+      label: formatDateLabel(date),
       weekdayLabel: DAY_LABELS[weekday],
       appointmentsCount: dayAppointments.length,
       freeSlotsCount: slots.filter((slot) => slot.state === 'free').length,
@@ -162,139 +218,132 @@ function buildAgendaDays(input: {
 }
 
 function buildSlots(input: {
-  date: Date;
+  date: string;
   minTime: string;
   maxTime: string;
   slotMinutes: number;
   dayAvailabilities: BackendAvailabilityItem[];
-  appointments: AgendaAppointmentItem[];
+  blocks: BackendAgendaBlockItem[];
+  appointments: MappedAgendaAppointment[];
 }) {
   const startMinutes = timeToMinutes(input.minTime);
   const endMinutes = timeToMinutes(input.maxTime);
   const slots: AgendaSlot[] = [];
 
   for (let minutes = startMinutes; minutes < endMinutes; minutes += input.slotMinutes) {
-    const slotStart = setTime(input.date, minutes);
-    const slotEnd = setTime(input.date, Math.min(minutes + input.slotMinutes, endMinutes));
+    const slotEndMinutes = Math.min(minutes + input.slotMinutes, endMinutes);
     const withinAvailability = input.dayAvailabilities.some((availability) => {
-      const availabilityStart = setTime(input.date, timeToMinutes(availability.startTime));
-      const availabilityEnd = setTime(input.date, timeToMinutes(availability.endTime));
-      return slotStart >= availabilityStart && slotEnd <= availabilityEnd;
+      const availabilityStart = timeToMinutes(availability.startTime);
+      const availabilityEnd = timeToMinutes(availability.endTime);
+      return minutes >= availabilityStart && slotEndMinutes <= availabilityEnd;
     });
 
-    const appointment = input.appointments.find((item) => {
-      const startsAt = new Date(item.startsAt);
-      const endsAt = new Date(item.endsAt);
-      return slotStart < endsAt && slotEnd > startsAt;
-    });
+    const appointment = input.appointments.find(
+      (item) => minutes < item.endMinutes && slotEndMinutes > item.startMinutes,
+    );
+
+    const blockedReason = getBlockReasonForSlot(input.date, minutes, slotEndMinutes, input.blocks);
 
     let state: AgendaSlotState = 'unavailable';
+    let unavailableReason: string | null = null;
+
     if (appointment) {
       state = 'occupied';
+    } else if (blockedReason) {
+      state = 'unavailable';
+      unavailableReason = blockedReason;
     } else if (withinAvailability) {
       state = 'free';
+    } else {
+      state = 'unavailable';
+      unavailableReason = 'Fora da disponibilidade do profissional';
     }
 
     slots.push({
-      key: `${formatDate(input.date)}-${minutes}`,
-      startsAt: slotStart.toISOString(),
-      endsAt: slotEnd.toISOString(),
-      timeLabel: formatTime(slotStart),
+      key: `${input.date}-${minutes}`,
+      startsAt: `${input.date}T${minutesToTime(minutes)}:00`,
+      endsAt: `${input.date}T${minutesToTime(slotEndMinutes)}:00`,
+      timeLabel: minutesToTime(minutes),
       state,
       appointment,
+      unavailableReason,
     });
   }
 
   return slots;
 }
 
+function getBlockReasonForSlot(
+  date: string,
+  slotStartMinutes: number,
+  slotEndMinutes: number,
+  blocks: BackendAgendaBlockItem[],
+) {
+  for (const block of blocks) {
+    const start = new Date(block.startsAt);
+    const end = new Date(block.endsAt);
+
+    const startDate = getLocalDateString(start);
+    const endDate = getLocalDateString(end);
+
+    if (date < startDate || date > endDate) {
+      continue;
+    }
+
+    const dayStart = date === startDate ? getLocalMinutes(start) : 0;
+    const dayEnd = date === endDate ? getLocalMinutes(end) : 24 * 60;
+
+    if (slotStartMinutes < dayEnd && slotEndMinutes > dayStart) {
+      return block.reason?.trim() || 'Bloqueio de agenda do profissional';
+    }
+  }
+
+  return null;
+}
+
 function buildRange(date: string, view: AgendaViewMode) {
-  const baseDate = new Date(`${date}T00:00:00.000Z`);
-  const startDate = view === 'week' ? startOfWeek(baseDate) : baseDate;
-  const endDate = view === 'week' ? addDays(startDate, 6) : baseDate;
+  const startDate = view === 'week' ? startOfWeek(date) : date;
+  const endDate = view === 'week' ? addDays(startDate, 6) : date;
 
   return {
     startDate,
     endDate,
-    startIso: `${formatDate(startDate)}T00:00:00.000Z`,
-    endIso: `${formatDate(endDate)}T23:59:59.999Z`,
+    queryStartIso: `${addDays(startDate, -1)}T00:00:00.000Z`,
+    queryEndIso: `${addDays(endDate, 1)}T23:59:59.999Z`,
   };
 }
 
-function buildFallbackAgenda(
-  requestedDate: string,
-  view: AgendaViewMode,
-  requestedProfessionalId: string | null,
-): AgendaResponse {
-  const range = buildRange(requestedDate, view);
-  const days = buildAgendaDays({
-    startDate: range.startDate,
-    endDate: range.endDate,
-    availabilities: [
-      { weekday: 1, startTime: '08:00:00', endTime: '18:00:00', slotMinutes: 30 },
-      { weekday: 2, startTime: '08:00:00', endTime: '18:00:00', slotMinutes: 30 },
-      { weekday: 3, startTime: '08:00:00', endTime: '18:00:00', slotMinutes: 30 },
-      { weekday: 4, startTime: '08:00:00', endTime: '18:00:00', slotMinutes: 30 },
-      { weekday: 5, startTime: '08:00:00', endTime: '18:00:00', slotMinutes: 30 },
-    ],
-    appointments: [
-      {
-        id: 'demo-1',
-        startsAt: `${requestedDate}T09:00:00.000Z`,
-        endsAt: `${requestedDate}T10:00:00.000Z`,
-        status: 'CONFIRMED',
-        confirmationStatus: 'CONFIRMED',
-        client: { fullName: 'Mariana Costa' },
-        service: { name: 'Consulta inicial' },
-      },
-      {
-        id: 'demo-2',
-        startsAt: `${requestedDate}T14:00:00.000Z`,
-        endsAt: `${requestedDate}T15:00:00.000Z`,
-        status: 'SCHEDULED',
-        confirmationStatus: 'PENDING',
-        client: { fullName: 'Paulo Reis' },
-        service: { name: 'Retorno' },
-      },
-    ],
-  });
+function mapAppointment(item: BackendAppointmentItem): MappedAgendaAppointment {
+  const startsAt = new Date(item.startsAt);
+  const endsAt = new Date(item.endsAt);
 
-  return {
-    view,
-    selectedDate: requestedDate,
-    selectedProfessionalId: requestedProfessionalId ?? 'demo-professional',
-    professionals: [
-      { id: 'demo-professional', fullName: 'Ana Martins', specialty: 'Atendimento geral' },
-      { id: 'demo-2', fullName: 'Bruno Lima', specialty: 'Estetica' },
-    ],
-    range: {
-      startDate: formatDate(range.startDate),
-      endDate: formatDate(range.endDate),
-      label: formatRangeLabel(range.startDate, range.endDate, view),
-    },
-    days,
-    summary: {
-      totalAppointments: days.reduce((acc, day) => acc + day.appointmentsCount, 0),
-      occupiedSlots: days.reduce(
-        (acc, day) => acc + day.slots.filter((slot) => slot.state === 'occupied').length,
-        0,
-      ),
-      freeSlots: days.reduce((acc, day) => acc + day.freeSlotsCount, 0),
-    },
-  };
-}
-
-function mapAppointment(item: BackendAppointmentItem): AgendaAppointmentItem {
   return {
     id: item.id,
     clientName: item.client?.fullName ?? 'Cliente',
     serviceName: item.service?.name ?? 'Servico',
-    startsAt: item.startsAt,
-    endsAt: item.endsAt,
+    startsAt: `${getLocalDateString(startsAt)}T${minutesToTime(getLocalMinutes(startsAt))}:00`,
+    endsAt: `${getLocalDateString(endsAt)}T${minutesToTime(getLocalMinutes(endsAt))}:00`,
     status: item.status,
     confirmationStatus: item.confirmationStatus ?? null,
     notes: item.notes ?? null,
+    localDate: getLocalDateString(startsAt),
+    startMinutes: getLocalMinutes(startsAt),
+    endMinutes: getLocalMinutes(endsAt),
   };
+}
+
+function resolveProfessionalId(
+  professionals: BackendProfessionalListItem[],
+  requestedProfessionalId: string | null,
+) {
+  if (
+    requestedProfessionalId &&
+    professionals.some((professional) => professional.id === requestedProfessionalId)
+  ) {
+    return requestedProfessionalId;
+  }
+
+  return professionals.at(0)?.id ?? null;
 }
 
 function normalizeDate(value: string | null) {
@@ -302,31 +351,35 @@ function normalizeDate(value: string | null) {
     return value;
   }
 
-  return formatDate(new Date());
+  return getLocalDateString(new Date());
 }
 
 function normalizeView(value: string | null): AgendaViewMode {
   return value === 'week' ? 'week' : 'day';
 }
 
-function startOfWeek(date: Date) {
-  const day = date.getUTCDay();
-  const diff = day === 0 ? -6 : 1 - day;
+function startOfWeek(date: string) {
+  const weekday = getWeekday(date);
+  const diff = weekday === 0 ? -6 : 1 - weekday;
   return addDays(date, diff);
 }
 
-function addDays(date: Date, amount: number) {
-  const result = new Date(date);
-  result.setUTCDate(result.getUTCDate() + amount);
-  return result;
+function addDays(date: string, amount: number) {
+  const baseDate = new Date(`${date}T12:00:00.000Z`);
+  baseDate.setUTCDate(baseDate.getUTCDate() + amount);
+  return baseDate.toISOString().slice(0, 10);
 }
 
-function enumerateDates(startDate: Date, endDate: Date) {
-  const dates: Date[] = [];
-  for (let cursor = new Date(startDate); cursor <= endDate; cursor = addDays(cursor, 1)) {
-    dates.push(new Date(cursor));
+function enumerateDates(startDate: string, endDate: string) {
+  const dates: string[] = [];
+  for (let cursor = startDate; cursor <= endDate; cursor = addDays(cursor, 1)) {
+    dates.push(cursor);
   }
   return dates;
+}
+
+function getWeekday(date: string) {
+  return new Date(`${date}T12:00:00.000Z`).getUTCDay();
 }
 
 function timeToMinutes(value: string) {
@@ -334,10 +387,10 @@ function timeToMinutes(value: string) {
   return hours * 60 + minutes;
 }
 
-function setTime(date: Date, minutes: number) {
-  const result = new Date(date);
-  result.setUTCHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
-  return result;
+function minutesToTime(minutes: number) {
+  const hours = String(Math.floor(minutes / 60)).padStart(2, '0');
+  const mins = String(minutes % 60).padStart(2, '0');
+  return `${hours}:${mins}`;
 }
 
 function getMinStartTime(availabilities: BackendAvailabilityItem[]) {
@@ -360,27 +413,45 @@ function getSlotMinutes(availabilities: BackendAvailabilityItem[]) {
   return values[0] ?? 30;
 }
 
-function isSameDate(left: Date, right: Date) {
-  return formatDate(left) === formatDate(right);
+function getLocalDateString(date: Date) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: AGENDA_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
 }
 
-function formatDate(date: Date) {
-  return date.toISOString().slice(0, 10);
+function getLocalMinutes(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: AGENDA_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? '0');
+  const minute = Number(parts.find((part) => part.type === 'minute')?.value ?? '0');
+  return hour * 60 + minute;
 }
 
-function formatTime(date: Date) {
-  return date.toISOString().slice(11, 16);
+function formatDateLabel(date: string) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: AGENDA_TIME_ZONE,
+    day: '2-digit',
+    month: '2-digit',
+  }).format(new Date(`${date}T12:00:00.000Z`));
 }
 
-function formatRangeLabel(startDate: Date, endDate: Date, view: AgendaViewMode) {
+function formatRangeLabel(startDate: string, endDate: string, view: AgendaViewMode) {
   const formatter = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: AGENDA_TIME_ZONE,
     day: '2-digit',
     month: 'short',
   });
 
   if (view === 'day') {
-    return formatter.format(startDate);
+    return formatter.format(new Date(`${startDate}T12:00:00.000Z`));
   }
 
-  return `${formatter.format(startDate)} - ${formatter.format(endDate)}`;
+  return `${formatter.format(new Date(`${startDate}T12:00:00.000Z`))} - ${formatter.format(new Date(`${endDate}T12:00:00.000Z`))}`;
 }

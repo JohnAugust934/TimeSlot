@@ -1,4 +1,3 @@
-import { Transform } from 'class-transformer';
 import { IsBoolean, IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class CreateProfessionalDto {
@@ -23,7 +22,6 @@ export class CreateProfessionalDto {
   phone?: string;
 
   @IsOptional()
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
   @IsEmail()
   @MaxLength(255)
   email?: string;

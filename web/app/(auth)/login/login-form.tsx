@@ -22,7 +22,7 @@ export function LoginForm() {
     resolver: zodResolver(loginSchema),
     defaultValues: {
       email: 'admin@timeslot.local',
-      password: '123456',
+      password: 'Admin@123456',
     },
   });
 

@@ -35,13 +35,13 @@ export async function POST(request: Request) {
     const data = payload?.data ?? payload;
     const token = data?.accessToken as string | undefined;
     const user: AuthUser = {
-      id: data?.user?.id ?? 'local-user',
+      id: data?.user?.id ?? '',
       name: data?.user?.name ?? 'Usuario autenticado',
       email: data?.user?.email ?? body.email,
       role: data?.user?.role ?? 'ADMIN',
     };
 
-    if (!token) {
+    if (!token || !user.id) {
       return NextResponse.json({ message: 'Resposta de autenticacao invalida.' }, { status: 500 });
     }
 
@@ -50,32 +50,20 @@ export async function POST(request: Request) {
       httpOnly: true,
       path: '/',
       sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
     });
     responseWithCookies.cookies.set(USER_COOKIE_NAME, JSON.stringify(user), {
       httpOnly: true,
       path: '/',
       sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
     });
+
     return responseWithCookies;
   } catch {
-    const fallbackUser: AuthUser = {
-      id: 'demo-admin',
-      name: 'Administrador Demo',
-      email: body.email,
-      role: 'ADMIN',
-    };
-
-    const responseWithCookies = NextResponse.json({ success: true, demo: true });
-    responseWithCookies.cookies.set(AUTH_COOKIE_NAME, 'demo-token', {
-      httpOnly: true,
-      path: '/',
-      sameSite: 'lax',
-    });
-    responseWithCookies.cookies.set(USER_COOKIE_NAME, JSON.stringify(fallbackUser), {
-      httpOnly: true,
-      path: '/',
-      sameSite: 'lax',
-    });
-    return responseWithCookies;
+    return NextResponse.json(
+      { message: 'Nao foi possivel conectar ao backend de autenticacao.' },
+      { status: 502 },
+    );
   }
 }

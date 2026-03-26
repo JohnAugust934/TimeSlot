@@ -17,7 +17,7 @@ interface AgendaPageClientProps {
 export function AgendaPageClient({ initialDate }: AgendaPageClientProps) {
   const [view, setView] = useState<AgendaViewMode>('day');
   const [selectedDate, setSelectedDate] = useState(initialDate);
-  const [selectedProfessionalId, setSelectedProfessionalId] = useState<string | null>(null);
+  const [requestedProfessionalId, setRequestedProfessionalId] = useState<string | null>(null);
   const [data, setData] = useState<AgendaResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +33,7 @@ export function AgendaPageClient({ initialDate }: AgendaPageClientProps) {
         const response = await loadAgenda({
           date: selectedDate,
           view,
-          professionalId: selectedProfessionalId,
+          professionalId: requestedProfessionalId,
         });
 
         if (!active) {
@@ -41,7 +41,6 @@ export function AgendaPageClient({ initialDate }: AgendaPageClientProps) {
         }
 
         setData(response);
-        setSelectedProfessionalId(response.selectedProfessionalId);
       } catch (fetchError) {
         if (!active) {
           return;
@@ -62,7 +61,7 @@ export function AgendaPageClient({ initialDate }: AgendaPageClientProps) {
     return () => {
       active = false;
     };
-  }, [selectedDate, selectedProfessionalId, view]);
+  }, [requestedProfessionalId, selectedDate, view]);
 
   return (
     <div className="space-y-6">
@@ -73,7 +72,7 @@ export function AgendaPageClient({ initialDate }: AgendaPageClientProps) {
 
       <AgendaToolbar
         professionals={data?.professionals ?? []}
-        selectedProfessionalId={selectedProfessionalId}
+        selectedProfessionalId={requestedProfessionalId ?? data?.selectedProfessionalId ?? null}
         selectedDate={selectedDate}
         view={view}
         summary={
@@ -84,10 +83,10 @@ export function AgendaPageClient({ initialDate }: AgendaPageClientProps) {
           }
         }
         onDateChange={setSelectedDate}
-        onProfessionalChange={(value) => setSelectedProfessionalId(value || null)}
+        onProfessionalChange={(value) => setRequestedProfessionalId(value || null)}
         onViewChange={setView}
         onStepDate={(direction) => {
-          const baseDate = new Date(`${selectedDate}T00:00:00.000Z`);
+          const baseDate = new Date(`${selectedDate}T12:00:00.000Z`);
           const amount = view === 'week' ? 7 : 1;
           baseDate.setUTCDate(baseDate.getUTCDate() + (direction === 'next' ? amount : -amount));
           setSelectedDate(baseDate.toISOString().slice(0, 10));

@@ -8,6 +8,35 @@ interface ApiRequestOptions extends RequestInit {
   auth?: boolean;
 }
 
+interface ErrorPayload {
+  message?: string;
+  error?: {
+    message?: string;
+    code?: string;
+    details?: string[];
+  };
+}
+
+function resolveErrorMessage(payload: ErrorPayload | null) {
+  if (!payload) {
+    return 'Falha ao comunicar com a API.';
+  }
+
+  if (typeof payload.message === 'string' && payload.message.trim()) {
+    return payload.message;
+  }
+
+  if (payload.error?.message?.trim()) {
+    return payload.error.message;
+  }
+
+  if (payload.error?.details?.length) {
+    return payload.error.details.join(' | ');
+  }
+
+  return 'Falha ao comunicar com a API.';
+}
+
 export async function apiFetch<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const cookieStore = await cookies();
   const token = cookieStore.get(AUTH_COOKIE_NAME)?.value;
@@ -22,11 +51,11 @@ export async function apiFetch<T>(path: string, options: ApiRequestOptions = {})
     cache: options.cache ?? 'no-store',
   });
 
-  const payload = await response.json().catch(() => null);
+  const payload = (await response.json().catch(() => null)) as ErrorPayload | null;
 
   if (!response.ok) {
-    throw new Error(payload?.message ?? 'Falha ao comunicar com a API.');
+    throw new Error(resolveErrorMessage(payload));
   }
 
-  return payload?.data ?? payload;
+  return (payload as { data?: T } | null)?.data ?? (payload as T);
 }

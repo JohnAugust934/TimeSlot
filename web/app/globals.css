@@ -18,3 +18,29 @@ body {
 * {
   border-color: #d9d4ca;
 }
+
+input:not([type='checkbox']):not([type='radio']):not([type='range']),
+select,
+textarea {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.grid > * {
+  min-width: 0;
+}
+
+@keyframes toastProgress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.toast-progress {
+  animation-name: toastProgress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}

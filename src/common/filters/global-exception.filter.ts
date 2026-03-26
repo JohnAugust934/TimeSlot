@@ -9,34 +9,49 @@ import {
 import { Prisma } from '@prisma/client';
 import type { Response } from 'express';
 
+interface NormalizedError {
+  message: string;
+  code: string;
+  details: string[];
+}
+
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
 
   catch(exception: unknown, host: ArgumentsHost): void {
-    const response = host.switchToHttp().getResponse<Response>();
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<{ url?: string }>();
 
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
-      const normalizedError = this.normalizeHttpException(exceptionResponse, exception.message);
+      const normalizedError = this.normalizeHttpException(
+        exceptionResponse,
+        exception.message,
+        status,
+      );
 
       response.status(status).json({
         success: false,
         error: normalizedError,
+        path: request.url ?? null,
         timestamp: new Date().toISOString(),
       });
       return;
     }
 
     if (exception instanceof Prisma.PrismaClientKnownRequestError) {
-      response.status(this.getPrismaStatus(exception.code)).json({
+      const status = this.getPrismaStatus(exception.code);
+      response.status(status).json({
         success: false,
         error: {
           message: this.getPrismaMessage(exception.code),
-          code: exception.code,
+          code: `DB_${exception.code}`,
           details: [],
         },
+        path: request.url ?? null,
         timestamp: new Date().toISOString(),
       });
       return;
@@ -47,17 +62,26 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       error: {
-        message: 'Unexpected internal server error.',
+        message: 'Erro interno inesperado.',
+        code: 'INTERNAL_SERVER_ERROR',
         details: [],
       },
+      path: request.url ?? null,
       timestamp: new Date().toISOString(),
     });
   }
 
-  private normalizeHttpException(exceptionResponse: string | object, fallbackMessage: string) {
+  private normalizeHttpException(
+    exceptionResponse: string | object,
+    fallbackMessage: string,
+    status: number,
+  ): NormalizedError {
+    const defaultCode = this.getHttpCode(status);
+
     if (typeof exceptionResponse === 'string') {
       return {
         message: exceptionResponse,
+        code: defaultCode,
         details: [],
       };
     }
@@ -66,25 +90,42 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       const candidate = exceptionResponse as {
         message?: string | string[];
         error?: string;
+        code?: string;
       };
 
       if (Array.isArray(candidate.message)) {
         return {
-          message: 'Validation failed.',
+          message: 'Falha de validacao.',
+          code: candidate.code ?? 'VALIDATION_ERROR',
           details: candidate.message,
         };
       }
 
       return {
         message: candidate.message ?? candidate.error ?? fallbackMessage,
+        code: candidate.code ?? defaultCode,
         details: [],
       };
     }
 
     return {
       message: fallbackMessage,
+      code: defaultCode,
       details: [],
     };
+  }
+
+  private getHttpCode(status: number): string {
+    const codeByStatus: Record<number, string> = {
+      [HttpStatus.BAD_REQUEST]: 'BAD_REQUEST',
+      [HttpStatus.UNAUTHORIZED]: 'UNAUTHORIZED',
+      [HttpStatus.FORBIDDEN]: 'FORBIDDEN',
+      [HttpStatus.NOT_FOUND]: 'NOT_FOUND',
+      [HttpStatus.CONFLICT]: 'CONFLICT',
+      [HttpStatus.UNPROCESSABLE_ENTITY]: 'UNPROCESSABLE_ENTITY',
+    };
+
+    return codeByStatus[status] ?? 'HTTP_ERROR';
   }
 
   private getPrismaStatus(code: string): number {
@@ -101,11 +142,11 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   private getPrismaMessage(code: string): string {
     switch (code) {
       case 'P2002':
-        return 'A unique field already exists with the provided value.';
+        return 'Ja existe um registro com valor unico informado.';
       case 'P2025':
-        return 'Requested record was not found.';
+        return 'Registro solicitado nao foi encontrado.';
       default:
-        return 'Database request failed.';
+        return 'Falha na operacao de banco de dados.';
     }
   }
 }
